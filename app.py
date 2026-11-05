@@ -1,13 +1,14 @@
-"""Person 3: Streamlit UI.
-
-STEP 2: real checks, live log, overall risk badge, colour-coded table, per-package details.
-"""
+"""Person 3: Streamlit UI. STEP 3: SBOM download and AI explanations."""
+import json
 import time
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
+from agent import explain_results
 from checks import check_packages, overall_risk, parse_requirements
+from sbom import build_sbom
 
 st.set_page_config(page_title="PackageGuard", layout="wide")
 st.title("PackageGuard")
@@ -46,6 +47,7 @@ if st.button("Scan", type="primary"):
         results = check_packages(packages, on_result=on_result)
         st.session_state.results = results
         st.session_state.elapsed = time.time() - t0
+        st.session_state.pop("explain", None)
 
 results = st.session_state.get("results")
 if results:
@@ -62,16 +64,26 @@ if results:
          "Confidence": r.confidence, "Reason": r.reasons[0] if r.reasons else ""}
         for r in results
     ]
-    import pandas as pd
     df = pd.DataFrame(rows)
     st.dataframe(df.style.map(lambda v: f"background-color:{COLORS[v]}" if v in COLORS else "", subset=["Verdict"]),
                  use_container_width=True, hide_index=True)
+
+    c_sbom, c_ai = st.columns(2)
+    c_sbom.download_button("Download SBOM (CycloneDX JSON)", json.dumps(build_sbom(results), indent=2),
+                           "packageguard-sbom.cdx.json", "application/json")
+    if c_ai.button("Explain with AI"):
+        with st.spinner("Asking the LLM to explain the results..."):
+            st.session_state.explain = explain_results(results)
 
     st.subheader("Details")
     for r in results:
         with st.expander(f"{r.name} {r.version} - {r.verdict} ({r.confidence})"):
             for reason in r.reasons:
                 st.write("- " + reason)
+            explain = st.session_state.get("explain")
+            if explain:
+                texts, source = explain
+                st.write(f"**Explanation** ({source}): {texts.get(r.name, '')}")
             if r.fix:
-                st.info(f"Fix candidate: {r.fix} (verified in step 3)")
+                st.info(f"Suggested fix: {r.fix}")
             st.json(r.evidence, expanded=False)
