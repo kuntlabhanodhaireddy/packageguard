@@ -1,0 +1,4 @@
+streamlit>=1.37
+requests>=2.31
+python-dotenv>=1.0
+# Person 2: add your LLM provider's SDK here
