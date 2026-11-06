@@ -1,5 +1,8 @@
 """PackageGuard Streamlit UI with SBOM export and AI explanations."""
 import json
+import sys 
+import os 
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 import time
 from datetime import datetime
 from pathlib import Path
