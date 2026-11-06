@@ -17,7 +17,8 @@ import json
 import os
 import re
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -298,22 +299,22 @@ def check_package(name: str, version: str = "latest") -> PackageResult:
 
 
 def check_packages(packages: list[tuple[str, str]], on_result=None) -> list[PackageResult]:
-    """Check many packages in parallel. on_result(result) fires as each one finishes (live log).
+    """Check many packages in parallel. on_result(result) fires as each one finishes (live log)."""
+    def run(p):
+        res = check_package(*p)
+        if on_result:
+     
+         return res
 
-    Network work runs in worker threads, but on_result is called from the calling thread.
-    Streamlit UI calls only work in the main thread, so this avoids NoSessionContext.
-    Results are returned in the same order as the input.
-    """
-    results: dict[int, PackageResult] = {}
     with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {pool.submit(check_package, name, version): i
-                   for i, (name, version) in enumerate(packages)}
-        for future in as_completed(futures):
-            res = future.result()
-            results[futures[future]] = res
+        futures = [pool.submit(run, p) for p in packages]
+        results = []
+        for fut in as_completed(futures):
+            res = fut.result()
+            results.append(res)
             if on_result:
                 on_result(res)
-    return [results[i] for i in range(len(packages))]
+        return results
 
 
 def overall_risk(results: list[PackageResult]) -> str:
